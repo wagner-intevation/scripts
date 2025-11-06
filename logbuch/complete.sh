@@ -1,4 +1,5 @@
 # logbuch completion                             -*- shell-script -*-
+# shellcheck shell=bash
 
 # for _apt_get
 source /usr/share/bash-completion/completions/apt-get
