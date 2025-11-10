@@ -47,7 +47,7 @@ ignored_keys = {
 impossible_keys = {
     'q', # Akquise#
 }
-impossible_entries = []
+impossible_entries = defaultdict(list)
 projects = defaultdict(list)
 
 # open getan database read-only
@@ -61,7 +61,7 @@ try:
         if row['project_key'] in ignored_keys:
             continue
         if row['project_key'] in impossible_keys:
-            impossible_entries.append(row)
+            impossible_entries[row['project_desc']].append(row)
             continue
 
         # Extract project ID from project description
@@ -74,9 +74,12 @@ finally:
     conn.close()
 
 if impossible_entries:
-    print('Impossible to handle these entries:')
-    for row in impossible_entries:
-        print(f"{row['day']} {row['hours']:2d}:{row['minutes']:02d} {row['project_desc']:15} {row['entry_desc']}")
+    if args.verbose:
+        print('Impossible to handle these entries:')
+        for row in impossible_entries:
+            print(f"{row['day']} {row['hours']:2d}:{row['minutes']:02d} {row['project_desc']:15} {row['entry_desc']}")
+    else:
+        print(f"Impossible to handle entries for {', '.join(impossible_entries)}")
 
 for proj_id, entries in projects.items():
     print(f'Handle Project #{proj_id}')
