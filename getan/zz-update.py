@@ -64,9 +64,13 @@ try:
             impossible_entries[row['project_desc']].append(row)
             continue
 
-        # Extract project ID from project description
-        match = project_id_pattern.search(row['project_desc'])
-        proj_id = match.group(0)[1:] if match else ''
+        if row['project_desc'].lower().startswith('pflege'):
+            # If "Pflege", then it's an activity
+            proj_id = row['project_desc'].split(' ')[1].lower()
+        else:
+            # Extract project ID from project description
+            match = project_id_pattern.search(row['project_desc'])
+            proj_id = match.group(0)[1:] if match else ''
 
         #print(f"{day} {proj_id} {zz:>6} {entry_desc:40}")
         projects[proj_id].append(row)
@@ -82,19 +86,39 @@ if impossible_entries:
         print(f"Impossible to handle entries for {', '.join(impossible_entries)}")
 
 for proj_id, entries in projects.items():
-    print(f'Handle Project #{proj_id}')
+    try:
+        int(proj_id)
+        activity = False
+    except ValueError:
+        activity = True
 
-    # Find the project directory by globbing
-    matches = list(Path('/home/clients').glob(f'*/{proj_id}*'))
-    if len(matches) == 0:
-        print(f'  Warning: No directory found matching pattern /home/clients/*/{proj_id}*')
-        continue
-    elif len(matches) > 1:
-        print(f'  Warning: Multiple directories found: {[str(m) for m in matches]!r}')
-        continue
-    target_dir = matches[0]
-    if args.verbose:
-        print(f'  Found directory: {target_dir}')
+    if activity:
+        print(f'Handle Activity Pflege {proj_id}')
+        # Find the project directory by globbing
+        matches = list(Path('/home/activities').glob(f'pflege-{proj_id}*'))
+        if len(matches) == 0:
+            print(f'  Warning: No directory found matching pattern /home/clients/*/{proj_id}*')
+            continue
+        elif len(matches) > 1:
+            print(f'  Warning: Multiple directories found: {[str(m) for m in matches]!r}')
+            continue
+        target_dir = matches[0]
+        if args.verbose:
+            print(f'  Found directory: {target_dir}')
+    else:
+        print(f'Handle Project #{proj_id}')
+
+        # Find the project directory by globbing
+        matches = list(Path('/home/clients').glob(f'*/{proj_id}*'))
+        if len(matches) == 0:
+            print(f'  Warning: No directory found matching pattern /home/clients/*/{proj_id}*')
+            continue
+        elif len(matches) > 1:
+            print(f'  Warning: Multiple directories found: {[str(m) for m in matches]!r}')
+            continue
+        target_dir = matches[0]
+        if args.verbose:
+            print(f'  Found directory: {target_dir}')
 
     # Probe for zeiterfassung.txt in Management or Projekt-Management
     zeiterfassung_paths = [
