@@ -12,13 +12,29 @@ parser.add_argument('-d', '--days', type=int, default=7, help='Number of days to
 parser.add_argument('shorthand', help='Shorthand to use in zeiterfassung.txt')
 args = parser.parse_args()
 
+# ANSI formatting codes
+BOLD = '\033[1m'
+UNDERLINE = '\033[4m'
+RESET = '\033[0m'
+
 project_id_pattern = re.compile(r'#[0-9]+')
 
 # zeiterfassung.txt format
 zz_format = '{day} {hours:2}:{minutes:02}h ? {shorthand:3} {entry_desc}'
 
 query = f"""
-WITH ent(project_id, day, hours, description) AS (SELECT project_id, strftime('%Y-%m-%d', start_time) as day, printf('%.2f', cast(strftime('%s', stop_time) - strftime('%s', start_time) as float))/3600 as hours, description FROM entries)
+WITH
+    ent(project_id, day, hours, description)
+    AS
+    (
+        SELECT
+            project_id,
+            strftime('%Y-%m-%d', start_time) as day,
+            printf('%.2f', cast(strftime('%s', stop_time) - strftime('%s', start_time) as float))/3600 as hours,
+            description
+        FROM entries
+        ORDER BY start_time ASC
+    )
 SELECT
     strftime('%d.%m.%Y', day) as day,
     cast(FLOOR(hours) as integer) as hours,
@@ -28,7 +44,8 @@ SELECT
     p.description as project_desc
 FROM ent
 JOIN projects p ON p.id = project_id
-WHERE day > datetime('now', '-{args.days} days') ORDER BY day DESC;
+WHERE day > datetime('now', '-{args.days} days')
+ORDER BY day ASC;
 """
 
 database = os.path.expanduser("~/.getan/time.db")
@@ -93,7 +110,7 @@ for proj_id, entries in projects.items():
         activity = True
 
     if activity:
-        print(f'Handle Activity Pflege {proj_id}')
+        print(f'{BOLD}Handle Activity Pflege {proj_id}{RESET}')
         # Find the project directory by globbing
         matches = list(Path('/home/activities').glob(f'pflege-{proj_id}*'))
         if len(matches) == 0:
@@ -106,7 +123,7 @@ for proj_id, entries in projects.items():
         if args.verbose:
             print(f'  Found directory: {target_dir}')
     else:
-        print(f'Handle Project #{proj_id}')
+        print(f'{BOLD}Handle Project #{proj_id}{RESET}')
 
         # Find the project directory by globbing
         matches = list(Path('/home/clients').glob(f'*/{proj_id}*'))
@@ -133,8 +150,7 @@ for proj_id, entries in projects.items():
     if zeiterfassung_file is None:
         print(f'  Warning: No zeiterfassung.txt found in Management/ or Projekt-Management/')
         continue
-    if args.verbose:
-        print(f'  Found zeiterfassung.txt: {zeiterfassung_file}')
+    print(f'  {UNDERLINE}zeiterfassung.txt{RESET}: {zeiterfassung_file}')
 
     # Open zeiterfassung_file read-only
     with open(zeiterfassung_file, 'r', encoding='utf-8') as f:
@@ -164,12 +180,23 @@ for proj_id, entries in projects.items():
     # Create a set of all the lines for quick lookups
     existing_lines = set(line.rstrip('\n') for line in lines)
 
+    new_entries = []
+    existing_entries = []
     for entry in entries:
         formatted_entry = zz_format.format(shorthand=args.shorthand, **entry)
 
         # Check if the line already exists in zeiterfassung_file
         if formatted_entry in existing_lines:
-            if args.verbose:
-                print(f'  Skipping (already exists): {formatted_entry}')
+            existing_entries.append(formatted_entry)
         else:
-            print(f'  New entry: {formatted_entry}')
+            new_entries.append(formatted_entry)
+
+    if args.verbose and existing_entries:
+        print('  Skipping already existing entries:')
+        # intentionally indented to make it non-copiable
+        for entry in existing_entries:
+            print(f'  {entry}')
+    if new_entries:
+        print('  New entries:')
+        for entry in new_entries:
+            print(entry)
