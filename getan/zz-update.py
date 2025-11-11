@@ -3,12 +3,16 @@ import sqlite3
 import os
 import re
 import argparse
+import subprocess
+import tempfile
 from collections import defaultdict
 from pathlib import Path
+from datetime import datetime
 
 parser = argparse.ArgumentParser(description='Update zeiterfassung.txt files with getan entries')
 parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
 parser.add_argument('-d', '--days', type=int, default=7, help='Number of days to look back (default: 7)')
+parser.add_argument('-a', '--automatic', action='store_true', help='Automatically add the entries to the destination files')
 parser.add_argument('shorthand', help='Shorthand to use in zeiterfassung.txt')
 args = parser.parse_args()
 
@@ -18,6 +22,7 @@ UNDERLINE = '\033[4m'
 RESET = '\033[0m'
 
 project_id_pattern = re.compile(r'#[0-9]+')
+TODAY = datetime.now().strftime('%d.%m.%Y')
 
 # zeiterfassung.txt format
 zz_format = '{day} {hours:2}:{minutes:02}h ? {shorthand:3} {entry_desc}'
@@ -200,3 +205,45 @@ for proj_id, entries in projects.items():
         print('  New entries:')
         for entry in new_entries:
             print(entry)
+        if args.automatic and zeiterfassung_file:
+            # Write all lines from new_entries to a temporary file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt') as tmpfile:
+                tmpfile_path = tmpfile.name
+                tmpfile.writelines([f"{entry}\n" for entry in new_entries])
+                tmpfile.flush()  # otherwise vim reads the file before the data is written
+
+                try:
+                    # change directory
+                    previous_dir = os.getcwd()
+                    os.chdir(zeiterfassung_file.parent)
+
+                    # Check if directory is under version control
+                    hg_root = subprocess.run(['hg', 'root'], capture_output=True, text=True)
+                    is_hg_repo = hg_root.returncode == 0
+                    if is_hg_repo:
+                        # update hg Repository
+                        subprocess.run(['hg', 'update'], check=True)
+                        # only pull a remote is configured
+                        result = subprocess.run(['hg', 'paths'], capture_output=True, text=True)
+                        if result.stdout.strip():
+                            subprocess.run(['hg', 'pull', '--update'], check=True)
+
+                    # Insert text before the last occurrence of ^=====
+                    subprocess.run(['vim', '-c',
+                                    f'$?^=====?-1 read {tmpfile_path}',
+                                    str(zeiterfassung_file)])
+
+                    if is_hg_repo:
+                        subprocess.run(['hg', 'diff'], check=True)
+                        diff_accepted = input("Commit this (y)? Or (a)bort ")
+                        if diff_accepted == 'y':
+                            subprocess.run(['hg', 'commit',
+                                            '-e',  # open editor even with -m given
+                                            '-m', f'{args.shorthand.upper()} {TODAY}'],
+                                           check=True)
+                        else:
+                            exit(-1)
+                finally:
+                    # change back to the previous directory
+                    os.chdir(previous_dir)
+                    # delete the temporary file
