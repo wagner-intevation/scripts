@@ -34,7 +34,7 @@ WITH
     (
         SELECT
             project_id,
-            strftime('%Y-%m-%d', start_time) as day,
+            DATE(start_time) as day,
             printf('%.2f', cast(strftime('%s', stop_time) - strftime('%s', start_time) as float))/3600 as hours,
             description
         FROM entries
@@ -49,7 +49,7 @@ SELECT
     p.description as project_desc
 FROM ent
 JOIN projects p ON p.id = project_id
-WHERE day > datetime('now', '-{args.days} days')
+WHERE day >= date('now', '-{args.days} days')
 ORDER BY day ASC;
 """
 
