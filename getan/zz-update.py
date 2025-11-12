@@ -12,6 +12,7 @@ from datetime import datetime
 parser = argparse.ArgumentParser(description='Update zeiterfassung.txt files with getan entries')
 parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
 parser.add_argument('-d', '--days', type=int, default=7, help='Number of days to look back (default: 7)')
+parser.add_argument('-q', '--akquise', help='Only deal with this Akquise (Project) number')
 parser.add_argument('-a', '--automatic', action='store_true', help='Automatically add the entries to the destination files')
 parser.add_argument('shorthand', help='Shorthand to use in zeiterfassung.txt')
 args = parser.parse_args()
@@ -114,6 +115,11 @@ for proj_id, entries in projects.items():
         activity = False
     except ValueError:
         activity = True
+
+    if activity or (args.akquise and proj_id != args.akquise):
+        if args.verbose:
+            print(f'Skipping Akquise {proj_id}')
+        continue
 
     if activity:
         print(f'{BOLD}Handle Activity Pflege {proj_id}{RESET}')
