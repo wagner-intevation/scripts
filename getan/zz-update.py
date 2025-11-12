@@ -94,16 +94,17 @@ try:
             match = project_id_pattern.search(row['project_desc'])
             proj_id = match.group(0)[1:] if match else ''
 
-        #print(f"{day} {proj_id} {zz:>6} {entry_desc:40}")
         projects[proj_id].append(row)
 finally:
     conn.close()
 
 if impossible_entries:
     if args.verbose:
-        print('Impossible to handle these entries:')
-        for row in impossible_entries:
-            print(f"{row['day']} {row['hours']:2d}:{row['minutes']:02d} {row['project_desc']:15} {row['entry_desc']}")
+        print(f'{BOLD}Impossible to handle these entries{RESET}:')
+        for proj, entries in impossible_entries.items():
+            print(f'    {UNDERLINE}{proj}{RESET}')
+            for entry in entries:
+                print(f"{row['day']} {row['hours']:2d}:{row['minutes']:02d} {row['project_desc']:15} {row['entry_desc']}")
     else:
         print(f"Impossible to handle entries for {', '.join(impossible_entries)}")
 
