@@ -8,6 +8,8 @@ import tempfile
 from collections import defaultdict
 from pathlib import Path
 from datetime import datetime
+from typing import List
+from pprint import pprint
 
 parser = argparse.ArgumentParser(description='Update zeiterfassung.txt files with getan entries')
 parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
@@ -53,6 +55,18 @@ JOIN projects p ON p.id = project_id
 WHERE day >= date('now', '-{args.days} days')
 ORDER BY day ASC;
 """
+
+def normalize_entry_line(line):
+    if len(line) > 18:
+        return line[:18] + line[19:]
+    return line
+
+
+def print_impossible(project_name: str, project_entries: List[dict]):
+    print(f'    {UNDERLINE}{project_name}{RESET}')
+    for entry in project_entries:
+        print(f"{entry['day']} {entry['hours']:2d}:{entry['minutes']:02d} {entry['project_desc']:15} {entry['entry_desc']}")
+
 
 database = os.path.expanduser("~/.getan/time.db")
 
@@ -103,9 +117,7 @@ if impossible_entries:
     if args.verbose:
         print(f'{BOLD}Impossible to handle these entries{RESET}:')
         for proj, entries in impossible_entries.items():
-            print(f'    {UNDERLINE}{proj}{RESET}')
-            for entry in entries:
-                print(f"{row['day']} {row['hours']:2d}:{row['minutes']:02d} {row['project_desc']:15} {row['entry_desc']}")
+            print_impossible(project_name=proj, project_entries=entries)
     else:
         print(f"Impossible to handle entries for {', '.join(impossible_entries)}")
 
@@ -116,7 +128,7 @@ for proj_id, entries in projects.items():
     except ValueError:
         activity = True
 
-    if activity or (args.akquise and proj_id != args.akquise):
+    if args.akquise and proj_id != args.akquise:
         if args.verbose:
             print(f'Skipping Akquise {proj_id}')
         continue
@@ -126,10 +138,12 @@ for proj_id, entries in projects.items():
         # Find the project directory by globbing
         matches = list(Path('/home/activities').glob(f'pflege-{proj_id}*'))
         if len(matches) == 0:
-            print(f'  Warning: No directory found matching pattern /home/clients/*/{proj_id}*')
+            print(f'  Error: No directory found matching pattern /home/clients/*/{proj_id}*')
+            print_impossible(proj_id, entries)
             continue
         elif len(matches) > 1:
-            print(f'  Warning: Multiple directories found: {[str(m) for m in matches]!r}')
+            print(f'  Error: Multiple directories found: {[str(m) for m in matches]!r}')
+            print_impossible(proj_id, entries)
             continue
         target_dir = matches[0]
         if args.verbose:
@@ -140,10 +154,12 @@ for proj_id, entries in projects.items():
         # Find the project directory by globbing
         matches = list(Path('/home/clients').glob(f'*/{proj_id}*'))
         if len(matches) == 0:
-            print(f'  Warning: No directory found matching pattern /home/clients/*/{proj_id}*')
+            print(f'  Error: No directory found matching pattern /home/clients/*/{proj_id}*')
+            print_impossible(proj_id, entries)
             continue
         elif len(matches) > 1:
-            print(f'  Warning: Multiple directories found: {[str(m) for m in matches]!r}')
+            print(f'  Error: Multiple directories found: {[str(m) for m in matches]!r}')
+            print_impossible(proj_id, entries)
             continue
         target_dir = matches[0]
         if args.verbose:
@@ -160,7 +176,8 @@ for proj_id, entries in projects.items():
             zeiterfassung_file = path
             break
     if zeiterfassung_file is None:
-        print(f'  Warning: No zeiterfassung.txt found in Management/ or Projekt-Management/')
+        print(f'  Error: No zeiterfassung.txt found in Management/ or Projekt-Management/')
+        print_impossible(proj_id, entries)
         continue
     print(f'  {UNDERLINE}zeiterfassung.txt{RESET}: {zeiterfassung_file}')
 
@@ -190,15 +207,14 @@ for proj_id, entries in projects.items():
         continue
 
     # Create a set of all the lines for quick lookups
-    existing_lines = set(line.rstrip('\n') for line in lines)
+    existing_lines = set(normalize_entry_line(line).rstrip('\n') for line in lines)
 
     new_entries = []
     existing_entries = []
     for entry in entries:
         formatted_entry = zz_format.format(shorthand=args.shorthand, **entry)
 
-        # Check if the line already exists in zeiterfassung_file
-        if formatted_entry in existing_lines:
+        if normalize_entry_line(formatted_entry) in existing_lines:
             existing_entries.append(formatted_entry)
         else:
             new_entries.append(formatted_entry)
