@@ -152,9 +152,9 @@ for proj_id, entries in projects.items():
         print(f'{BOLD}Handle Project #{proj_id}{RESET}')
 
         # Find the project directory by globbing
-        matches = list(Path('/home/clients').glob(f'*/{proj_id}*'))
+        matches = list(Path('/home/clients').glob(f'*/{proj_id}*')) + list(Path('/home/projects/Intern').glob(f'{proj_id}*'))
         if len(matches) == 0:
-            print(f'  Error: No directory found matching pattern /home/clients/*/{proj_id}*')
+            print(f'  Error: No directory found matching pattern /home/clients/*/{proj_id}* and /home/projects/Intern/{proj_id}*')
             print_impossible(proj_id, entries)
             continue
         elif len(matches) > 1:
