@@ -138,7 +138,7 @@ for proj_id, entries in projects.items():
         # Find the project directory by globbing
         matches = list(Path('/home/activities').glob(f'pflege-{proj_id}*'))
         if len(matches) == 0:
-            print(f'  Error: No directory found matching pattern /home/clients/*/{proj_id}*')
+            print(f'  Error: No directory found matching pattern /home/activities/*/{proj_id}*')
             print_impossible(proj_id, entries)
             continue
         elif len(matches) > 1:
