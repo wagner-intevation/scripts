@@ -32,6 +32,9 @@ The file is ignored if it does not exist.
 # Comma-separated project keys that cannot be auto-resolved
 # impossible_keys = q
 
+# Initials to use in zeiterfassung.txt entries.
+# initials = abc
+
 [zz-update:manual-mappings]
 # Manually map a project ID to its project root directory when auto-detection fails.
 # 1234 = /home/clients/company/1234-project

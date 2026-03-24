@@ -24,8 +24,13 @@ parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose
 parser.add_argument('-d', '--days', type=int, default=7, help='Number of days to look back (default: 7)')
 parser.add_argument('-q', '--akquise', help='Only deal with this Akquise (Project) number')
 parser.add_argument('-a', '--automatic', action='store_true', help='Automatically add the entries to the destination files')
-parser.add_argument('shorthand', help='Shorthand to use in zeiterfassung.txt')
+parser.add_argument('--initials', help='Initials to use in zeiterfassung.txt')
 args = parser.parse_args()
+
+if args.initials is None:
+    args.initials = _cfg.get('zz-update', 'initials', fallback=None)
+if args.initials is None:
+    parser.error("initials is required (pass as argument or set 'initials' in [zz-update] in ~/.getan/config.ini)")
 
 # ANSI formatting codes
 BOLD = '\033[1m'
@@ -36,7 +41,7 @@ project_id_pattern = re.compile(r'#[0-9]+')
 TODAY = datetime.now().strftime('%d.%m.%Y')
 
 # zeiterfassung.txt format
-zz_format = '{day} {hours:2}:{minutes:02}h ? {shorthand:3} {entry_desc}'
+zz_format = '{day} {hours:2}:{minutes:02}h ? {initials:3} {entry_desc}'
 
 query = f"""
 WITH
@@ -229,7 +234,7 @@ for proj_id, entries in projects.items():
     new_entries = []
     existing_entries = []
     for entry in entries:
-        formatted_entry = zz_format.format(shorthand=args.shorthand, **entry)
+        formatted_entry = zz_format.format(initials=args.initials, **entry)
 
         if normalize_entry_line(formatted_entry) in existing_lines:
             existing_entries.append(formatted_entry)
@@ -279,7 +284,7 @@ for proj_id, entries in projects.items():
                         if diff_accepted == 'y':
                             subprocess.run(['hg', 'commit',
                                             '-e',  # open editor even with -m given
-                                            '-m', f'{args.shorthand.upper()} {TODAY}'],
+                                            '-m', f'{args.initials.upper()} {TODAY}'],
                                            check=True)
                         else:
                             exit(-1)
