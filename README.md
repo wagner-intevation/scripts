@@ -40,3 +40,19 @@ The file is ignored if it does not exist.
 # 1234 = /home/clients/company/1234-project
 # example = /home/activities/pflege-example
 ```
+
+## Logbuch
+
+### Bash completions
+
+Place `logbuch/bash_completion` in `/etc/bash_completion.d/logbuch` to enable completions for logbuch tools.
+
+It completes these commands:
+- `apt-install`
+- `apt-remove`
+- `apt-autoremove`
+- `apt-build-dep`
+- `apt-upgrade`
+- `apt-dist-upgrade`
+
+logbuch tools: https://hg.intevation.de/adminton/
