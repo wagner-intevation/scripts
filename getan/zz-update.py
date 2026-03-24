@@ -5,11 +5,19 @@ import re
 import argparse
 import subprocess
 import tempfile
+import configparser
 from collections import defaultdict
 from pathlib import Path
 from datetime import datetime
 from typing import List
 from pprint import pprint
+
+_cfg = configparser.ConfigParser()
+_cfg.read(Path('~/.getan/config.ini').expanduser())
+
+
+def _parse_keys(raw: str) -> set:
+    return {k.strip() for k in raw.split(',') if k.strip()}
 
 parser = argparse.ArgumentParser(description='Update zeiterfassung.txt files with getan entries')
 parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
@@ -70,22 +78,22 @@ def print_impossible(project_name: str, project_entries: List[dict]):
 
 database = os.path.expanduser("~/.getan/time.db")
 
-ignored_keys = {
-    'A', # regel. Arbeitsorganisation*
-    'w', # IT-Infrastruktur
-    'o', # Organisieren und verbessern*
-    'Q', # Qualifikation
-    'B', # Buchhaltung
-    'ü', # Büro
-    'M', # Menschen fördern
-    'u', # Unternehmen*
-    'k', # Marketing allg+streut*
-}
-impossible_keys = {
-    'q', # Akquise#
-}
+# A=regel. Arbeitsorganisation*, w=IT-Infrastruktur, o=Organisieren und verbessern*,
+# Q=Qualifikation, B=Buchhaltung, ü=Büro, M=Menschen fördern, u=Unternehmen*, k=Marketing allg+streut*
+ignored_keys = _parse_keys(_cfg.get(
+    'zz-update', 'ignored_keys', fallback='A,w,o,Q,B,ü,M,u,k'
+))
+# q=Akquise#
+impossible_keys = _parse_keys(_cfg.get(
+    'zz-update', 'impossible_keys', fallback='q'
+))
 impossible_entries = defaultdict(list)
 projects = defaultdict(list)
+
+manual_mappings: dict[str, Path] = {}
+if _cfg.has_section('zz-update:manual-mappings'):
+    for _pid, _raw_path in _cfg.items('zz-update:manual-mappings'):
+        manual_mappings[_pid] = Path(_raw_path)
 
 # open getan database read-only
 conn = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
@@ -133,7 +141,16 @@ for proj_id, entries in projects.items():
             print(f'Skipping Akquise {proj_id}')
         continue
 
-    if activity:
+    if proj_id in manual_mappings:
+        print(f'{BOLD}Handle {"Activity Pflege" if activity else "Project #"}{proj_id} (manual mapping){RESET}')
+        target_dir = manual_mappings[proj_id]
+        if not target_dir.is_dir():
+            print(f'  Error: Manual mapping for {proj_id} points to non-existent directory: {target_dir}')
+            print_impossible(proj_id, entries)
+            continue
+        if args.verbose:
+            print(f'  Using manual mapping: {target_dir}')
+    elif activity:
         print(f'{BOLD}Handle Activity Pflege {proj_id}{RESET}')
         # Find the project directory by globbing
         matches = list(Path('/home/activities').glob(f'pflege-{proj_id}*'))
