@@ -221,9 +221,10 @@ for proj_id, entries in projects.items():
     # Check that the last Block is not Abgerechnet
     # The line can contain a dot at the end, so only check the start of the line
     # lower/upper case is not standardised, so compare case-insensitive
+    # Empty next lines means the project is not meant to be abgerechnet
     next_line = lines[last_separator_idx + 1].strip().lower()
     if not (next_line.startswith('abgerechnet: noch nicht')
-        or next_line.startswith('abgerechnet: teilweise')):
+        or next_line.startswith('abgerechnet: teilweise')) and next_line != '':
         print(f'  Error: Last Abrechnungsblock is abgerechnet, create a new block manually.')
         print(f'  Error: Blockpostfix was: {next_line!r}')
         continue
