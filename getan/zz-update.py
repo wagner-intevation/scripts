@@ -9,6 +9,7 @@ import configparser
 from collections import defaultdict
 from pathlib import Path
 from datetime import datetime
+from sys import exit
 from typing import List
 from pprint import pprint
 
@@ -280,15 +281,19 @@ for proj_id, entries in projects.items():
                                     str(zeiterfassung_file)])
 
                     if is_hg_repo:
-                        subprocess.run(['hg', 'diff'], check=True)
-                        diff_accepted = input("Commit this (y)? Or (a)bort ")
-                        if diff_accepted == 'y':
-                            subprocess.run(['hg', 'commit',
-                                            '-e',  # open editor even with -m given
-                                            '-m', f'{args.initials.upper()} {TODAY}'],
-                                           check=True)
+                        diff_result = subprocess.run(['hg', 'diff'], capture_output=True, text=True, check=True)
+                        if not diff_result.stdout:
+                            print("No changes to commit.")
                         else:
-                            exit(-1)
+                            print(diff_result.stdout)
+                            diff_accepted = input("Commit this (y)? Or (a)bort ")
+                            if diff_accepted == 'y':
+                                subprocess.run(['hg', 'commit',
+                                                '-e',  # open editor even with -m given
+                                                '-m', f'{args.initials.upper()} {TODAY}'],
+                                               check=True)
+                            else:
+                                exit(-1)
                 finally:
                     # change back to the previous directory
                     os.chdir(previous_dir)
