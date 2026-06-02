@@ -41,6 +41,31 @@ The file is ignored if it does not exist.
 # example = /home/activities/pflege-example
 ```
 
+## Docker
+
+### docker-prune
+
+Removes unused Docker objects (containers, networks, images) older than 30 days.
+Images not in use are always removed after 7 days.
+
+Suitable for use with `chronic -e` in cron for exit-code alerting without mail on normal output.
+Output is written to the systemd journal (`journalctl -t docker-prune`).
+
+### Exceptions
+
+`docker-prune.sh` accepts an optional shell file as its first argument where exceptions can be defined.
+All exception filters are combined (logical AND) together. Available options with examples:
+
+```sh
+PRUNE_EXCEPTION_IMAGE=sha256:5af1ab82af1afdd3ff64df7dabf984f32684aa5c65517fcff59d123a4af45603
+PRUNE_EXCEPTION_PROJECT_WORKING_DIR=/home/USERNAME/netbox-ot-assetdatabase_dev
+PRUNE_EXCEPTION_PROJECT=netbox-ot-assetdatabase_dev
+PRUNE_EXCEPTION_MAINTAINER=first.last@intevation.de
+```
+
+Filters apply to containers only, not images.
+Images are always removed after 7 days if unused.
+
 ## Logbuch
 
 ### Bash completions
