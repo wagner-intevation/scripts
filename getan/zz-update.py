@@ -24,6 +24,7 @@ parser = argparse.ArgumentParser(description='Update zeiterfassung.txt files wit
 parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
 parser.add_argument('-d', '--days', type=int, default=7, help='Number of days to look back (default: 7)')
 parser.add_argument('-q', '--akquise', help='Only deal with this Akquise (Project) number')
+parser.add_argument('-p', '--project', help='Only deal with entries with this project key')
 parser.add_argument('-a', '--automatic', action='store_true', help='Automatically add the entries to the destination files')
 parser.add_argument('--initials', help='Initials to use in zeiterfassung.txt')
 args = parser.parse_args()
@@ -109,6 +110,8 @@ cursor = conn.cursor()
 try:
     cursor.execute(query)
     for row in cursor.fetchall():
+        if args.project and row['project_key'] != args.project:
+            continue
         if row['project_key'] in ignored_keys:
             continue
         if row['project_key'] in impossible_keys:
