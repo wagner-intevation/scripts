@@ -16,9 +16,38 @@ from pprint import pprint
 _cfg = configparser.ConfigParser()
 _cfg.read(Path('~/.getan/config.ini').expanduser())
 
+HG_REPOS_DIR = Path('~/.getan/hg-repos').expanduser()
+
 
 def _parse_keys(raw: str) -> set:
     return {k.strip() for k in raw.split(',') if k.strip()}
+
+
+def prepare_hg_clone(source_dir: Path, proj_id: str, verbose: bool) -> Path:
+    """
+    Ensures a local clone exists, pulls and updates it.
+    Returns the clone's path.
+    Warns if the clone ends up with more than one head.
+    """
+    clone_dir = HG_REPOS_DIR / proj_id
+    if clone_dir.is_dir():
+        if verbose:
+            print(f'  Updating existing clone: {clone_dir}')
+        subprocess.run(['hg', 'pull', '-u', '-R', str(clone_dir)], check=True)
+        subprocess.run(['hg', 'update', '-R', str(clone_dir)], check=True)
+    else:
+        HG_REPOS_DIR.mkdir(parents=True, exist_ok=True)
+        print(f'  Cloning {source_dir} to {clone_dir}')
+        subprocess.run(['hg', 'clone', str(source_dir), str(clone_dir)], check=True)
+
+    # -T ... shows only the hashes
+    heads = subprocess.run(['hg', 'heads', '-R', str(clone_dir), '-T', '{node|short}\n'],
+                            capture_output=True, text=True, check=True)
+    head_count = len(heads.stdout.splitlines())
+    if head_count > 1:
+        print(f'  Warning: {clone_dir} has {head_count} heads!')
+
+    return clone_dir
 
 parser = argparse.ArgumentParser(description='Update zeiterfassung.txt files with getan entries')
 parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
@@ -205,7 +234,20 @@ for proj_id, entries in projects.items():
         print(f'  Error: No zeiterfassung.txt found in Management/ or Projekt-Management/')
         print_impossible(proj_id, entries)
         continue
-    print(f'  {UNDERLINE}zeiterfassung.txt{RESET}: {zeiterfassung_file}')
+
+    # If target_dir is version-controlled by hg, work in a local clone
+    management_path = zeiterfassung_file / '..'
+    is_hg_repo = subprocess.run(['hg', 'root', '-R', str(management_path)],
+                                capture_output=True, text=True).returncode == 0
+    if is_hg_repo:
+        clone_dir = prepare_hg_clone(management_path, proj_id, args.verbose)
+        zeiterfassung_file = clone_dir / 'zeiterfassung.txt'
+        if not zeiterfassung_file.exists():
+            print(f'  Error: {relative_zz_path} not found in clone {clone_dir}')
+            print_impossible(proj_id, entries)
+            continue
+
+    print(f'  {UNDERLINE}zeiterfassung.txt{RESET}: {zeiterfassung_file!s}' + (' (hg-versioned)' if is_hg_repo else ''))
 
     # Open zeiterfassung_file read-only
     with open(zeiterfassung_file, 'r', encoding='utf-8') as f:
@@ -262,42 +304,28 @@ for proj_id, entries in projects.items():
                 tmpfile.writelines([f"{entry}\n" for entry in new_entries])
                 tmpfile.flush()  # otherwise vim reads the file before the data is written
 
-                try:
-                    # change directory
-                    previous_dir = os.getcwd()
-                    os.chdir(zeiterfassung_file.parent)
+                # Insert text before the last occurrence of ^=====
+                subprocess.run(['vim', '-c',
+                                f'$?^=====?-1 read {tmpfile_path}',
+                                str(zeiterfassung_file)])
 
-                    # Check if directory is under version control
-                    hg_root = subprocess.run(['hg', 'root'], capture_output=True, text=True)
-                    is_hg_repo = hg_root.returncode == 0
-                    if is_hg_repo:
-                        # update hg Repository
-                        subprocess.run(['hg', 'update'], check=True)
-                        # only pull a remote is configured
-                        result = subprocess.run(['hg', 'paths'], capture_output=True, text=True)
-                        if result.stdout.strip():
-                            subprocess.run(['hg', 'pull', '--update'], check=True)
-
-                    # Insert text before the last occurrence of ^=====
-                    subprocess.run(['vim', '-c',
-                                    f'$?^=====?-1 read {tmpfile_path}',
-                                    str(zeiterfassung_file)])
-
-                    if is_hg_repo:
-                        diff_result = subprocess.run(['hg', 'diff'], capture_output=True, text=True, check=True)
-                        if not diff_result.stdout:
-                            print("No changes to commit.")
+                if is_hg_repo:
+                    print('is hg')
+                    diff_result = subprocess.run(['hg', 'diff', '-R', str(clone_dir)],
+                                                 capture_output=True, text=True, check=True)
+                    print(f'diff stdout: {diff_result.stdout}')
+                    if not diff_result.stdout:
+                        print("No changes to commit.")
+                    else:
+                        print('has diff')
+                        print(diff_result.stdout)
+                        diff_accepted = input("Commit this (y)? Or (a)bort ")
+                        if diff_accepted == 'y':
+                            subprocess.run(['hg', 'commit',
+                                            '-R', str(clone_dir),
+                                            '-e',  # open editor even with -m given
+                                            '-m', f'{args.initials.upper()} {TODAY}'],
+                                            check=True)
+                            subprocess.run(['hg', 'push', '-R', str(clone_dir)], check=True)
                         else:
-                            print(diff_result.stdout)
-                            diff_accepted = input("Commit this (y)? Or (a)bort ")
-                            if diff_accepted == 'y':
-                                subprocess.run(['hg', 'commit',
-                                                '-e',  # open editor even with -m given
-                                                '-m', f'{args.initials.upper()} {TODAY}'],
-                                               check=True)
-                            else:
-                                exit(-1)
-                finally:
-                    # change back to the previous directory
-                    os.chdir(previous_dir)
-                    # delete the temporary file
+                            exit(-1)
