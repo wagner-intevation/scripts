@@ -329,3 +329,11 @@ for proj_id, entries in projects.items():
                             subprocess.run(['hg', 'push', '-R', str(clone_dir)], check=True)
                         else:
                             exit(-1)
+
+                    heads = subprocess.run(['hg', 'heads', '-R', str(management_path),
+                                            '-T', '{node|short}\n'],
+                                           capture_output=True, text=True, check=True)
+
+                    head_count = len(heads.stdout.splitlines())
+                    if head_count > 1:
+                        print(f'  Warning: {clone_dir} has {head_count} heads!')
