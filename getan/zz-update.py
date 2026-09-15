@@ -72,7 +72,7 @@ project_id_pattern = re.compile(r'#[0-9]+')
 TODAY = datetime.now().strftime('%d.%m.%Y')
 
 # zeiterfassung.txt format
-zz_format = '{day} {hours:2}:{minutes:02}h ? {initials:3} {entry_desc}'
+zz_format = '{day} {hours:2}:{minutes:02}h {marker} {initials:3} {entry_desc}'
 
 query = f"""
 WITH
@@ -130,6 +130,18 @@ manual_mappings: dict[str, Path] = {}
 if _cfg.has_section('zz-update:manual-mappings'):
     for _pid, _raw_path in _cfg.items('zz-update:manual-mappings'):
         manual_mappings[_pid] = Path(_raw_path)
+
+# "abrechenbar" marker character, some projects require 'a' instead of '?'.
+default_abrechenbar = _cfg.get('zz-update', 'abrechenbar', fallback='?')
+if len(default_abrechenbar) != 1:
+    parser.error(f"'abrechenbar' in [zz-update] must be exactly one character, got {default_abrechenbar!r}")
+
+abrechenbar_markers: dict[str, str] = {}
+if _cfg.has_section('zz-update:abrechenbar'):
+    for _pid, _marker in _cfg.items('zz-update:abrechenbar'):
+        if len(_marker) != 1:
+            parser.error(f"'{_pid}' in [zz-update:abrechenbar] must be exactly one character, got {_marker!r}")
+        abrechenbar_markers[_pid] = _marker
 
 # open getan database read-only
 conn = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
@@ -278,10 +290,12 @@ for proj_id, entries in projects.items():
     # Create a set of all the lines for quick lookups
     existing_lines = set(normalize_entry_line(line).rstrip('\n') for line in lines)
 
+    marker = abrechenbar_markers.get(proj_id, default_abrechenbar)
+
     new_entries = []
     existing_entries = []
     for entry in entries:
-        formatted_entry = zz_format.format(initials=args.initials, **entry)
+        formatted_entry = zz_format.format(initials=args.initials, marker=marker, **entry)
 
         if normalize_entry_line(formatted_entry) in existing_lines:
             existing_entries.append(formatted_entry)

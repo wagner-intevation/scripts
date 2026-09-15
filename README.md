@@ -40,10 +40,18 @@ The file is ignored if it does not exist.
 # Initials to use in zeiterfassung.txt entries.
 # initials = abc
 
+# The default 'abrechenbar' marker. Must be exactly one character. Defaults to '?'.
+# abrechenbar = ?
+
 [zz-update:manual-mappings]
 # Manually map a project ID to its project root directory when auto-detection fails.
 # 1234 = /home/clients/company/1234-project
 # example = /home/activities/pflege-example
+
+[zz-update:abrechenbar]
+# Per-project override of the abrechenbar marker: some projects require 'a' instead of '?'.
+# 1234 = a
+# example = a
 ```
 
 ## Docker
